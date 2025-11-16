@@ -46,184 +46,6 @@
       "sameAs":["https://www.linkedin.com/company/influnic"]
     }
   </script>
-  <script type="application/javascript">
-    (function() {
-      const form = document.getElementById('contactForm');
-      const statusEl = document.getElementById('contactStatus');
-      const submitBtn = form.querySelector('button[type="submit"]');
-      const FUNCTION_URL = 'https://faas-fra1-afec6ce7.doserverless.co/api/v1/web/fn-bb200f31-dfa9-4873-8c09-c3d3c7163d05/default/web-contact';
-    
-      const MIN_MESSAGE_LEN = 20;
-      const MIN_TIME_ON_PAGE_MS = 4000;      // 4 seconds
-      const MAX_SUBMISSIONS_PER_HOUR = 3;    // per browser (soft limit)
-    
-      const pageLoadTime = Date.now();
-    
-      function setStatus(msg, isError = false) {
-        statusEl.textContent = msg;
-        statusEl.style.color = isError ? 'red' : 'green';
-      }
-    
-      function getRateLimitState() {
-        try {
-          const raw = localStorage.getItem('contactFormStats');
-          if (!raw) return null;
-          return JSON.parse(raw);
-        } catch (e) {
-          return null;
-        }
-      }
-    
-      function updateRateLimitState() {
-        const now = Date.now();
-        const hourMs = 60 * 60 * 1000;
-        let state = getRateLimitState();
-    
-        if (!state || !state.start || now - state.start >= hourMs) {
-          state = { start: now, count: 1 };
-        } else {
-          state.count += 1;
-        }
-    
-        localStorage.setItem('contactFormStats', JSON.stringify(state));
-        return state;
-      }
-    
-      function checkRateLimit() {
-        const now = Date.now();
-        const hourMs = 60 * 60 * 1000;
-        const state = getRateLimitState();
-    
-        if (!state) return { allowed: true, remaining: MAX_SUBMISSIONS_PER_HOUR };
-    
-        const elapsed = now - state.start;
-        if (elapsed >= hourMs) {
-          return { allowed: true, remaining: MAX_SUBMISSIONS_PER_HOUR };
-        }
-    
-        if (state.count >= MAX_SUBMISSIONS_PER_HOUR) {
-          return { allowed: false, remaining: 0 };
-        }
-    
-        return { allowed: true, remaining: MAX_SUBMISSIONS_PER_HOUR - state.count };
-      }
-    
-      // --- Client token generator ---
-      function generateClientToken() {
-        const ts = Date.now();
-        // basic random string (enough to differentiate)
-        const rand = (
-          Math.random().toString(36).slice(2) +
-          Math.random().toString(36).slice(2)
-        ).slice(0, 32);
-    
-        // sanitize UA to ASCII + limit length
-        const rawUA = navigator.userAgent || '';
-        const uaClean = rawUA.replace(/[^\x20-\x7E]/g, '').slice(0, 80);
-    
-        const payload = {
-          v: 1,
-          ts,
-          rand,
-          ua: uaClean
-        };
-    
-        const json = JSON.stringify(payload);
-    
-        // base64 encode safely
-        // btoa expects ASCII; JSON here is ASCII-only after sanitizing ua
-        const token = btoa(json);
-        return token;
-      }
-    
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        setStatus('');
-    
-        const now = Date.now();
-    
-        // 1) HTML5 built-in validation
-        if (!form.reportValidity()) {
-          return;
-        }
-    
-        // 2) Time-on-page check
-        if (now - pageLoadTime < MIN_TIME_ON_PAGE_MS) {
-          setStatus('Please take a moment to fill the form properly before sending 😊', true);
-          return;
-        }
-    
-        const name = form.name.value.trim();
-        const email = form.email.value.trim();
-        const message = form.message.value.trim();
-        const company = form.company.value.trim();  // honeypot
-        const captcha = form.captcha.value.trim();
-    
-        // 3) Simple captcha check (mirror backend)
-        if (captcha !== '7') {
-          setStatus('Please answer the anti-spam question correctly.', true);
-          return;
-        }
-    
-        // 4) Message quality checks
-        if (message.length < MIN_MESSAGE_LEN) {
-          setStatus('Please write a bit more detail in your message.', true);
-          return;
-        }
-    
-        const onlyOneChar = /^(\S)\1{9,}$/;
-        const onlyNumbers = /^\d+$/;
-        if (onlyOneChar.test(message) || onlyNumbers.test(message)) {
-          setStatus('Your message looks a bit suspicious. Please add more detail.', true);
-          return;
-        }
-    
-        // 5) Rate limit per browser
-        const rate = checkRateLimit();
-        if (!rate.allowed) {
-          setStatus('You have reached the maximum number of messages allowed per hour from this browser. Please try again later.', true);
-          return;
-        }
-    
-        // 6) Generate client token
-        const clientToken = generateClientToken();
-    
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Sending...';
-    
-        const payload = {
-          name,
-          email,
-          message,
-          company,
-          captcha,
-          clientToken
-        };
-    
-        try {
-          const res = await fetch(FUNCTION_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-    
-          if (res.ok) {
-            updateRateLimitState();
-            setStatus('Message sent successfully. Thank you!', false);
-            form.reset();
-          } else {
-            setStatus('There was an error sending your message. Please try again later.', true);
-          }
-        } catch (err) {
-          console.error(err);
-          setStatus('Network error. Please check your connection and try again.', true);
-        } finally {
-          submitBtn.disabled = false;
-          submitBtn.textContent = 'Send';
-        }
-      });
-    })();
-  </script>
 </head>
 <body class="bg-white text-gray-800">
   <!-- Header -->
@@ -449,6 +271,185 @@
     }
     // Year
     document.getElementById('y').textContent = new Date().getFullYear();
+  </script>
+
+  <script type="application/javascript">
+    (function() {
+      const form = document.getElementById('contactForm');
+      const statusEl = document.getElementById('contactStatus');
+      const submitBtn = form.querySelector('button[type="submit"]');
+      const FUNCTION_URL = 'https://faas-fra1-afec6ce7.doserverless.co/api/v1/web/fn-bb200f31-dfa9-4873-8c09-c3d3c7163d05/default/web-contact';
+    
+      const MIN_MESSAGE_LEN = 20;
+      const MIN_TIME_ON_PAGE_MS = 4000;      // 4 seconds
+      const MAX_SUBMISSIONS_PER_HOUR = 3;    // per browser (soft limit)
+    
+      const pageLoadTime = Date.now();
+    
+      function setStatus(msg, isError = false) {
+        statusEl.textContent = msg;
+        statusEl.style.color = isError ? 'red' : 'green';
+      }
+    
+      function getRateLimitState() {
+        try {
+          const raw = localStorage.getItem('contactFormStats');
+          if (!raw) return null;
+          return JSON.parse(raw);
+        } catch (e) {
+          return null;
+        }
+      }
+    
+      function updateRateLimitState() {
+        const now = Date.now();
+        const hourMs = 60 * 60 * 1000;
+        let state = getRateLimitState();
+    
+        if (!state || !state.start || now - state.start >= hourMs) {
+          state = { start: now, count: 1 };
+        } else {
+          state.count += 1;
+        }
+    
+        localStorage.setItem('contactFormStats', JSON.stringify(state));
+        return state;
+      }
+    
+      function checkRateLimit() {
+        const now = Date.now();
+        const hourMs = 60 * 60 * 1000;
+        const state = getRateLimitState();
+    
+        if (!state) return { allowed: true, remaining: MAX_SUBMISSIONS_PER_HOUR };
+    
+        const elapsed = now - state.start;
+        if (elapsed >= hourMs) {
+          return { allowed: true, remaining: MAX_SUBMISSIONS_PER_HOUR };
+        }
+    
+        if (state.count >= MAX_SUBMISSIONS_PER_HOUR) {
+          return { allowed: false, remaining: 0 };
+        }
+    
+        return { allowed: true, remaining: MAX_SUBMISSIONS_PER_HOUR - state.count };
+      }
+    
+      // --- Client token generator ---
+      function generateClientToken() {
+        const ts = Date.now();
+        // basic random string (enough to differentiate)
+        const rand = (
+          Math.random().toString(36).slice(2) +
+          Math.random().toString(36).slice(2)
+        ).slice(0, 32);
+    
+        // sanitize UA to ASCII + limit length
+        const rawUA = navigator.userAgent || '';
+        const uaClean = rawUA.replace(/[^\x20-\x7E]/g, '').slice(0, 80);
+    
+        const payload = {
+          v: 1,
+          ts,
+          rand,
+          ua: uaClean
+        };
+    
+        const json = JSON.stringify(payload);
+    
+        // base64 encode safely
+        // btoa expects ASCII; JSON here is ASCII-only after sanitizing ua
+        const token = btoa(json);
+        return token;
+      }
+    
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        setStatus('');
+    
+        const now = Date.now();
+    
+        // 1) HTML5 built-in validation
+        if (!form.reportValidity()) {
+          return;
+        }
+    
+        // 2) Time-on-page check
+        if (now - pageLoadTime < MIN_TIME_ON_PAGE_MS) {
+          setStatus('Please take a moment to fill the form properly before sending 😊', true);
+          return;
+        }
+    
+        const name = form.name.value.trim();
+        const email = form.email.value.trim();
+        const message = form.message.value.trim();
+        const company = form.company.value.trim();  // honeypot
+        const captcha = form.captcha.value.trim();
+    
+        // 3) Simple captcha check (mirror backend)
+        if (captcha !== '7') {
+          setStatus('Please answer the anti-spam question correctly.', true);
+          return;
+        }
+    
+        // 4) Message quality checks
+        if (message.length < MIN_MESSAGE_LEN) {
+          setStatus('Please write a bit more detail in your message.', true);
+          return;
+        }
+    
+        const onlyOneChar = /^(\S)\1{9,}$/;
+        const onlyNumbers = /^\d+$/;
+        if (onlyOneChar.test(message) || onlyNumbers.test(message)) {
+          setStatus('Your message looks a bit suspicious. Please add more detail.', true);
+          return;
+        }
+    
+        // 5) Rate limit per browser
+        const rate = checkRateLimit();
+        if (!rate.allowed) {
+          setStatus('You have reached the maximum number of messages allowed per hour from this browser. Please try again later.', true);
+          return;
+        }
+    
+        // 6) Generate client token
+        const clientToken = generateClientToken();
+    
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Sending...';
+    
+        const payload = {
+          name,
+          email,
+          message,
+          company,
+          captcha,
+          clientToken
+        };
+    
+        try {
+          const res = await fetch(FUNCTION_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+    
+          if (res.ok) {
+            updateRateLimitState();
+            setStatus('Message sent successfully. Thank you!', false);
+            form.reset();
+          } else {
+            setStatus('There was an error sending your message. Please try again later.', true);
+          }
+        } catch (err) {
+          console.error(err);
+          setStatus('Network error. Please check your connection and try again.', true);
+        } finally {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Send';
+        }
+      });
+    })();
   </script>
 </body>
 </html>
